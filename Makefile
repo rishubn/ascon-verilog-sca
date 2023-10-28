@@ -13,7 +13,7 @@ v1:
 	vvp tb
 
 v2:
-	iverilog -g2012 -o tb rtl/config_v2.sv rtl/config_core.sv rtl/tb.sv rtl/ascon_core.sv rtl/asconp.sv
+	iverilog -Irtl/ -g2012 -o tb rtl/tb.sv rtl/ascon_core.sv rtl/asconp.sv
 	vvp tb
 
 v3:

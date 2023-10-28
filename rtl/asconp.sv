@@ -5,7 +5,10 @@
 //
 // Implementation of the Ascon permutation (Ascon-p).
 // Performs UROL rounds per clock cycle.
-
+//`ifdef VIVADO
+`include "config_v2.vh"
+`include "config_core.vh"
+//`endif
 module asconp (
     input  logic [ 3:0] round_cnt,
     input  logic [63:0] x0_i,
@@ -20,13 +23,13 @@ module asconp (
     output logic [63:0] x4_o
 );
 
-  logic [UROL][63:0] x0_aff1, x0_chi, x0_aff2;
-  logic [UROL][63:0] x1_aff1, x1_chi, x1_aff2;
-  logic [UROL][63:0] x2_aff1, x2_chi, x2_aff2;
-  logic [UROL][63:0] x3_aff1, x3_chi, x3_aff2;
-  logic [UROL][63:0] x4_aff1, x4_chi, x4_aff2;
+  logic [UROL:0][63:0] x0_aff1, x0_chi, x0_aff2;
+  logic [UROL:0][63:0] x1_aff1, x1_chi, x1_aff2;
+  logic [UROL:0][63:0] x2_aff1, x2_chi, x2_aff2;
+  logic [UROL:0][63:0] x3_aff1, x3_chi, x3_aff2;
+  logic [UROL:0][63:0] x4_aff1, x4_chi, x4_aff2;
   logic [UROL:0][63:0] x0, x1, x2, x3, x4;
-  logic [UROL][3:0] t;
+  logic [UROL:0][3:0] t;
 
   assign x0[0] = x0_i;
   assign x1[0] = x1_i;

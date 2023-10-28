@@ -4,6 +4,17 @@
 // Author: Robert Primas (rprimas 'at' proton.me, https://rprimas.github.io)
 //
 // Implementation of the Ascon core.
+`ifdef XILINX_SIMULATOR
+`define VIVADO
+`endif
+`ifdef SYNTHESIS
+`define VIVADO
+`endif
+
+//`ifdef VIVADO
+`include "config_v2.vh"
+`include "config_core.vh"
+//`endif
 
 module ascon_core (
     input  logic            clk,
@@ -26,12 +37,20 @@ module ascon_core (
     output logic            bdo_eot,
     output logic            auth,
     output logic            auth_valid,
-    input  logic            auth_ready
+    input  logic            auth_ready,
+    output logic [63:0] x0,
+    output logic [63:0] x1,
+    output logic [63:0] x2,
+    output logic [63:0] x3,
+    output logic [63:0] x4
+		   
+		   
+	 
 );
 
   // Core registers
   logic [LANE_BITS/2-1:0] state     [      LANES] [2];
-  logic [    LANE_BITS/2] ascon_key [KEY_BITS/32];
+  logic [    LANE_BITS/2-1:0] ascon_key [KEY_BITS/32];
   logic [            3:0] round_cnt;
   logic [            1:0] word_cnt;
   logic [            1:0] hash_cnt;
@@ -80,7 +99,7 @@ module ascon_core (
   assign state_slice = state[state_idx/2][state_idx%2];  // Dynamic slicing
 
   // Finate state machine
-  typedef enum bit [64] {
+  typedef enum bit [63:0] {
     IDLE         = "IDLE",
     LOAD_KEY     = "LD_KEY",
     LOAD_NONCE   = "LD_NONCE",
@@ -244,7 +263,12 @@ module ascon_core (
       if (ld_nonce_done) begin
         state[0][0] <= IV_AEAD[31:0];
         state[0][1] <= IV_AEAD[63:32];
-        for (int i = 0; i < 4; i++) state[1+i/2][i%2] <= ascon_key[i];
+	state[1][0] <= ascon_key[0];
+	 state[1][1] <= ascon_key[1];
+	 state[2][0] <= ascon_key[2];
+	 state[2][1] <= ascon_key[3];
+ 
+    //    for (int i = 0; i < 4; i++) state[1+i/2][i%2] <= ascon_key[i];
       end
       // Compute Ascon-p
       if (init_do || pro_ad_do || pro_ptct_do || final_do) begin
@@ -333,7 +357,7 @@ module ascon_core (
   // Debug Signals (can be removed for synthesis) //
   //////////////////////////////////////////////////
 
-  logic [63:0] x0, x1, x2, x3, x4;
+ // logic [63:0] x0, x1, x2, x3, x4;
   assign x0 = {state[0][0], state[0][1]};
   assign x1 = {state[1][0], state[1][1]};
   assign x2 = {state[2][0], state[2][1]};

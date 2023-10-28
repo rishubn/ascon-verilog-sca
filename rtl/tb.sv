@@ -6,14 +6,17 @@
 // Test bench for controlling the Ascon core.
 
 `timescale 1s / 100ms
-
+`include "config_core.vh"
 module tb;
 
   // Test bench config
   int               SIM_CYCLES = 300;
+  `ifdef __ICARUS__
   string            VCD_FILE = "tb.vcd";
   string            TV_FILE = "tv/tv.txt";
-
+`else
+  string            TV_FILE = "/home/rnagpal/src/ascon-verilog-sca/tv/tv.txt";
+`endif
   // Test bench signals
   logic  [    23:0] tb_word_cnt = 0;
   logic  [    31:0] data;
@@ -186,11 +189,15 @@ module tb;
   end
 
   // Specify debug variables and set simulation start/finish
+
   initial begin
+    `ifdef __ICARUS__
     $dumpfile(VCD_FILE);
-    $dumpvars(0, clk, rst, op, data, tb_word_cnt, key, key_valid, key_ready, bdi, bdi_valid,
-              bdi_ready, bdi_type, bdi_eot, bdi_eoi, decrypt, hash, bdo, bdo_valid, bdo_ready,
-              bdo_type, bdo_eot, auth_valid, auth_ready, auth);
+//    $dumpvars(0, clk, rst, op, data, tb_word_cnt, key, key_valid, key_ready, bdi, bdi_valid,
+  //            bdi_ready, bdi_type, bdi_eot, bdi_eoi, decrypt, hash, bdo, bdo_valid, bdo_ready,
+    //          bdo_type, bdo_eot, auth_valid, auth_ready, auth);
+    $dumpvars;
+    `endif
     #1;
     rst = 1;
     #10;
