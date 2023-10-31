@@ -4,19 +4,11 @@
 // Author: Robert Primas (rprimas 'at' proton.me, https://rprimas.github.io)
 //
 // Implementation of the Ascon core.
-`ifdef XILINX_SIMULATOR
-`define VIVADO
-`endif
-`ifdef SYNTHESIS
-`define VIVADO
-`endif
-
-//`ifdef VIVADO
-`include "config_v2.vh"
 `include "config_core.vh"
-//`endif
+`include "config_sca.vh"
+`include `CONFIG_V_FILE
 
-module ascon_core (
+module ascon_core_sca (
     input  logic            clk,
     input  logic            rst,
     input  logic [CCSW-1:0] key,
@@ -37,32 +29,19 @@ module ascon_core (
     output logic            bdo_eot,
     output logic            auth,
     output logic            auth_valid,
-    input  logic            auth_ready,
-    output logic [63:0] x0,
-    output logic [63:0] x1,
-    output logic [63:0] x2,
-    output logic [63:0] x3,
-    output logic [63:0] x4
-		   
-		   
-	 
+    input  logic            auth_ready
 );
 
   // Core registers
   logic [LANE_BITS/2-1:0] state     [      LANES] [2];
-  logic [    LANE_BITS/2-1:0] ascon_key [KEY_BITS/32];
+  logic [    LANE_BITS/2] ascon_key [KEY_BITS/32];
   logic [            3:0] round_cnt;
+  logic [            $clog2(SBOX_LATENCY)-1:0] sbox_cnt;
   logic [            1:0] word_cnt;
   logic [            1:0] hash_cnt;
   logic flag_ad_eot, flag_dec, flag_eoi, flag_hash, auth_intern;
 
   // Utility signals
-   logic op_ld_key_req;
-   logic op_aead_req;
-   logic op_hash_req;
-   logic ld_key_do;
-   logic ld_key_done;
-   
   assign op_ld_key_req = key_valid;
   assign op_aead_req = (bdi_type == D_NONCE) & bdi_valid;
   assign op_hash_req = (bdi_type == D_AD) & bdi_valid & hash;
@@ -73,21 +52,21 @@ module ascon_core (
   assign ld_nonce_do = (fsm == LOAD_NONCE) & (bdi_type == D_NONCE) & bdi_valid & bdi_ready;
   assign ld_nonce_done = (word_cnt == 3) & ld_nonce_do;
   assign init_do = (fsm == INIT);
-  assign init_done = (round_cnt == UROL) & init_do;
+  assign init_done = (round_cnt == UROL) & (sbox_cnt == 0) & init_do;
   assign key_add_2_done = (fsm == KEY_ADD_2) & (flag_eoi | bdi_valid);
 
   assign abs_ad_do = (fsm == ABS_AD) & (bdi_type == D_AD) & bdi_valid & bdi_ready;
   assign abs_ad_done = ((word_cnt == 1) | bdi_eot) & abs_ad_do;
   assign pro_ad_do = (fsm == PRO_AD);
-  assign pro_ad_done = (round_cnt == UROL) & pro_ad_do;
+  assign pro_ad_done = (round_cnt == UROL) & (sbox_cnt == 0) & pro_ad_do;
 
   assign abs_ptct_do = (fsm == ABS_PTCT) & (bdi_type == D_PTCT) & bdi_valid & bdi_ready & bdo_ready;
   assign abs_ptct_done = ((word_cnt == 1) | bdi_eot) & abs_ptct_do;
   assign pro_ptct_do = (fsm == PRO_PTCT);
-  assign pro_ptct_done = (round_cnt == UROL) & pro_ptct_do;
+  assign pro_ptct_done = (round_cnt == UROL) & (sbox_cnt == 0) & pro_ptct_do;
 
   assign final_do = (fsm == FINAL);
-  assign final_done = (round_cnt == UROL) & final_do;
+  assign final_done = (round_cnt == UROL) & (sbox_cnt == 0) & final_do;
 
   assign sqz_hash_do = (fsm == SQUEEZE_HASH) & bdo_ready;
   assign sqz_hash_done1 = (word_cnt == 1) & sqz_hash_do;
@@ -105,7 +84,7 @@ module ascon_core (
   assign state_slice = state[state_idx/2][state_idx%2];  // Dynamic slicing
 
   // Finate state machine
-  typedef enum bit [63:0] {
+  typedef enum bit [64] {
     IDLE         = "IDLE",
     LOAD_KEY     = "LD_KEY",
     LOAD_NONCE   = "LD_NONCE",
@@ -215,7 +194,7 @@ module ascon_core (
     end
     if (ld_key_done) fsm_nx = LOAD_NONCE;
     if (ld_nonce_done) fsm_nx = INIT;
-    if (init_done) fsm_nx = flag_hash == 1 ? ABS_AD : KEY_ADD_2;
+    if (init_done) fsm_nx = flag_hash === 1 ? ABS_AD : KEY_ADD_2;
     if (key_add_2_done) begin
       if (flag_eoi) fsm_nx = DOM_SEP;
       else if (bdi_type == D_AD) fsm_nx = ABS_AD;
@@ -223,15 +202,15 @@ module ascon_core (
     end
     if (abs_ad_done) fsm_nx = PRO_AD;
     if (pro_ad_done) begin
-      if (flag_hash) fsm_nx = flag_ad_eot == 1 ? SQUEEZE_HASH : ABS_AD;
-      else fsm_nx = flag_ad_eot == 1 ? DOM_SEP : ABS_AD;
+      if (flag_hash) fsm_nx = flag_ad_eot === 1 ? SQUEEZE_HASH : ABS_AD;
+      else fsm_nx = flag_ad_eot === 1 ? DOM_SEP : ABS_AD;
     end
-    if (fsm == DOM_SEP) fsm_nx = flag_eoi == 1 ? KEY_ADD_3 : ABS_PTCT;
-    if (abs_ptct_done) fsm_nx = bdi_eot == 1 ? KEY_ADD_3 : PRO_PTCT;
-    if (pro_ptct_done) fsm_nx = flag_eoi == 1 ? KEY_ADD_3 : ABS_PTCT;
+    if (fsm == DOM_SEP) fsm_nx = flag_eoi === 1 ? KEY_ADD_3 : ABS_PTCT;
+    if (abs_ptct_done) fsm_nx = bdi_eot === 1 ? KEY_ADD_3 : PRO_PTCT;
+    if (pro_ptct_done) fsm_nx = flag_eoi === 1 ? KEY_ADD_3 : ABS_PTCT;
     if (fsm == KEY_ADD_3) fsm_nx = FINAL;
     if (final_done) fsm_nx = KEY_ADD_4;
-    if (fsm == KEY_ADD_4) fsm_nx = flag_dec == 1 ? VERIF_TAG : SQUEEZE_TAG;
+    if (fsm == KEY_ADD_4) fsm_nx = flag_dec === 1 ? VERIF_TAG : SQUEEZE_TAG;
     if (sqz_hash_done1) fsm_nx = PRO_AD;
     if (sqz_hash_done2) fsm_nx = IDLE;
     if (sqz_tag_done) fsm_nx = IDLE;
@@ -269,15 +248,10 @@ module ascon_core (
       if (ld_nonce_done) begin
         state[0][0] <= IV_AEAD[31:0];
         state[0][1] <= IV_AEAD[63:32];
-	state[1][0] <= ascon_key[0];
-	 state[1][1] <= ascon_key[1];
-	 state[2][0] <= ascon_key[2];
-	 state[2][1] <= ascon_key[3];
- 
-    //    for (int i = 0; i < 4; i++) state[1+i/2][i%2] <= ascon_key[i];
+        for (int i = 0; i < 4; i++) state[1+i/2][i%2] <= ascon_key[i];
       end
       // Compute Ascon-p
-      if (init_do || pro_ad_do || pro_ptct_do || final_do) begin
+      if ((init_do || pro_ad_do || pro_ptct_do || final_do) & (sbox_cnt == 0)) begin
         for (int i = 0; i < 10; i++) state[i/2][i%2] <= asconp_o[i/2][i%2];
       end
       // Key addition 2/4
@@ -318,10 +292,26 @@ module ascon_core (
       if (sqz_hash_done1) hash_cnt <= hash_cnt + 1;
       if (flag_hash & abs_ad_done & bdi_eoi) hash_cnt <= 0;
       // Setting round counter
-      if ((idle_done & op_hash_req) | ld_nonce_done | fsm == KEY_ADD_3) round_cnt <= ROUNDS_A;
-      if (((abs_ad_done & flag_hash) | sqz_hash_done1) & !sqz_hash_done2) round_cnt <= ROUNDS_A;
-      if ((abs_ad_done & !flag_hash) | (abs_ptct_done & !bdi_eot)) round_cnt <= ROUNDS_B;
-      if (init_do | pro_ad_do | pro_ptct_do | final_do) round_cnt <= round_cnt - UROL;
+      if ((idle_done & op_hash_req) | ld_nonce_done | fsm == KEY_ADD_3) begin
+        round_cnt <= ROUNDS_A;
+        sbox_cnt <= SBOX_LATENCY;
+      end
+      if (((abs_ad_done & flag_hash) | sqz_hash_done1) & !sqz_hash_done2) begin
+        round_cnt <= ROUNDS_A;
+        sbox_cnt <= SBOX_LATENCY;
+      end
+      if ((abs_ad_done & !flag_hash) | (abs_ptct_done & !bdi_eot)) begin
+        round_cnt <= ROUNDS_B;
+        sbox_cnt <= SBOX_LATENCY;
+      end
+      if (init_do | pro_ad_do | pro_ptct_do | final_do) begin
+        if (sbox_cnt == 0) begin
+          round_cnt <= round_cnt - UROL;
+          if (round_cnt != 0) sbox_cnt <= SBOX_LATENCY;
+        end else begin
+          sbox_cnt <= sbox_cnt - 1;
+        end
+      end
     end
   end
 
@@ -363,7 +353,7 @@ module ascon_core (
   // Debug Signals (can be removed for synthesis) //
   //////////////////////////////////////////////////
 
- // logic [63:0] x0, x1, x2, x3, x4;
+  logic [63:0] x0, x1, x2, x3, x4;
   assign x0 = {state[0][0], state[0][1]};
   assign x1 = {state[1][0], state[1][1]};
   assign x2 = {state[2][0], state[2][1]};
@@ -376,4 +366,4 @@ module ascon_core (
               x0, x1, x2, x3, x4);
   end
 
-endmodule  // ascon_core
+endmodule : ascon_core

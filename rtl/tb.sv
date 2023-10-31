@@ -7,6 +7,12 @@
 
 `timescale 1s / 100ms
 `include "config_core.vh"
+`ifdef __ICARUS__
+ `define SIM 1
+`endif
+`ifdef VERILATOR
+ `define SIM 1
+`endif
 module tb;
 
   // Test bench config
@@ -14,6 +20,9 @@ module tb;
   `ifdef __ICARUS__
   string            VCD_FILE = "tb.vcd";
   string            TV_FILE = "tv/tv.txt";
+  `elsif VERILATOR
+   string	    VCD_FILE="tb.fst";
+   string	    TV_FILE = "tv/tv.txt";
 `else
   string            TV_FILE = "/home/rnagpal/src/ascon-verilog-sca/tv/tv.txt";
 `endif
@@ -191,7 +200,7 @@ module tb;
   // Specify debug variables and set simulation start/finish
 
   initial begin
-    `ifdef __ICARUS__
+    `ifdef SIM
     $dumpfile(VCD_FILE);
 //    $dumpvars(0, clk, rst, op, data, tb_word_cnt, key, key_valid, key_ready, bdi, bdi_valid,
   //            bdi_ready, bdi_type, bdi_eot, bdi_eoi, decrypt, hash, bdo, bdo_valid, bdo_ready,
