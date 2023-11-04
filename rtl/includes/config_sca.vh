@@ -10,6 +10,6 @@
 
 `ifndef _config_sca_vh_
 `define _config_sca_vh_
-parameter integer SBOX_LATENCY = 1;
-
+parameter unsigned SBOX_LATENCY = 1;
+parameter integer NUM_SHARES = 2;
 `endif

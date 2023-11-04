@@ -150,7 +150,7 @@ def run_tb(k, n, ad, p, variant):
 
     # Run verilog test bench and parse the output
     ps = subprocess.run(
-        ["make", variant],
+        ["make", f'VERSION={variant}', 'verilator'],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=True,

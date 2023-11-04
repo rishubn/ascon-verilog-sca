@@ -9,5 +9,5 @@
 // - 2 permutation rounds per clock cycle.
 `ifndef _config_v2_vh_
 `define _config_v2_vh_
-parameter logic [1:0] UROL = 2;
+parameter unsigned UROL = 2;
 `endif

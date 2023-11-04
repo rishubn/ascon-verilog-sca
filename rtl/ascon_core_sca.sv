@@ -34,9 +34,9 @@ module ascon_core_sca (
 
   // Core registers
   logic [LANE_BITS/2-1:0] state     [      LANES] [2];
-  logic [    LANE_BITS/2] ascon_key [KEY_BITS/32];
+  logic [    LANE_BITS/2-1:0] ascon_key [KEY_BITS/32];
   logic [            3:0] round_cnt;
-  logic [            $clog2(SBOX_LATENCY)-1:0] sbox_cnt;
+  logic [            $clog2(SBOX_LATENCY):0] sbox_cnt;
   logic [            1:0] word_cnt;
   logic [            1:0] hash_cnt;
   logic flag_ad_eot, flag_dec, flag_eoi, flag_hash, auth_intern;
@@ -84,7 +84,7 @@ module ascon_core_sca (
   assign state_slice = state[state_idx/2][state_idx%2];  // Dynamic slicing
 
   // Finate state machine
-  typedef enum bit [64] {
+  typedef enum bit [63:0] {
     IDLE         = "IDLE",
     LOAD_KEY     = "LD_KEY",
     LOAD_NONCE   = "LD_NONCE",
@@ -107,8 +107,9 @@ module ascon_core_sca (
 
   // Instantiation of Ascon-p permutation
   asconp asconp_i (
+		   .rdi(0),
       .round_cnt(round_cnt),
-      .x0_i({state[0][0], state[0][1]}),
+      .x0_i({ 64'h0123456789abcdef,state[0][0], state[0][1]}),
       .x1_i({state[1][0], state[1][1]}),
       .x2_i({state[2][0], state[2][1]}),
       .x3_i({state[3][0], state[3][1]}),
@@ -366,4 +367,4 @@ module ascon_core_sca (
               x0, x1, x2, x3, x4);
   end
 
-endmodule : ascon_core
+endmodule : ascon_core_sca

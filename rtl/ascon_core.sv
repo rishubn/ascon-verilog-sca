@@ -37,12 +37,7 @@ module ascon_core (
     output logic            bdo_eot,
     output logic            auth,
     output logic            auth_valid,
-    input  logic            auth_ready,
-    output logic [63:0] x0,
-    output logic [63:0] x1,
-    output logic [63:0] x2,
-    output logic [63:0] x3,
-    output logic [63:0] x4
+    input  logic            auth_ready
 		   
 		   
 	 
@@ -376,4 +371,4 @@ module ascon_core (
               x0, x1, x2, x3, x4);
   end
 
-endmodule  // ascon_core
+endmodule : ascon_core
