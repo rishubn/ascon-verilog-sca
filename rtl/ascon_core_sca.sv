@@ -8,13 +8,13 @@
 `include "config_sca.vh"
 `include `CONFIG_V_FILE
 
-module ascon_core_sca (
+module ascon_core_sca#(parameter D = NUM_SHARES) (
     input  logic            clk,
     input  logic            rst,
-    input  logic [CCSW-1:0] key,
+    input  logic [D*CCSW-1:0] key,
     input  logic            key_valid,
     output logic            key_ready,
-    input  logic [ CCW-1:0] bdi,
+    input  logic [D*CCW-1:0] bdi,
     input  logic            bdi_valid,
     output logic            bdi_ready,
     input  logic [     3:0] bdi_type,
@@ -22,7 +22,7 @@ module ascon_core_sca (
     input  logic            bdi_eoi,
     input  logic            decrypt,
     input  logic            hash,
-    output logic [ CCW-1:0] bdo,
+    output logic [D*CCW-1:0] bdo,
     output logic            bdo_valid,
     input  logic            bdo_ready,
     output logic [     3:0] bdo_type,

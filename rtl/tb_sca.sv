@@ -24,7 +24,7 @@ module tb;
   string            TV_FILE = "tv/tv.txt";
   `elsif VERILATOR
    string	    VCD_FILE="tb.fst";
-   string	    TV_FILE = "tv/tv.txt";
+   string	    TV_FILE = "tv/tv_shared.txt";
 `else
   string            TV_FILE = "/home/rnagpal/src/ascon-verilog-sca/tv/tv.txt";
 `endif
