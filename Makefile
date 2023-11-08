@@ -20,7 +20,7 @@ endif
 VERILATOR_FLAGS =
 VERILATOR_FLAGS += --cc --exe --timing
 VERILATOR_FLAGS += --build -j --main
-VERILATOR_FLAGS += -Wno-unoptflat -Wno-timescalemod -Wno-selrange -Wno-widthexpand -Wno-widthtrunc -Wno-implicit
+VERILATOR_FLAGS += -Wno-unoptflat -Wno-timescalemod -Wno-implicit
 ifdef VCD
 VERILATOR_FLAGS += --trace
 endif
@@ -34,7 +34,7 @@ VERILATOR_DEFINES = -DCONFIG_V_FILE="\"config_$(VERSION).vh\""
 
 
 
-SRCS = rtl/asconp.sv rtl/ascon_core_sca.sv rtl/tb_sca.sv
+SRCS = rtl/asconp.sv rtl/ascon_core_sca.sv rtl/dom_and.sv rtl/tb_sca.sv
 TOP=tb
 
 .PHONY: clean verilator
@@ -48,4 +48,5 @@ iverilog:
 	iverilog -g2012 -o tb -Irtl/includes rtl/tb.sv rtl/ascon_core.sv rtl/asconp.sv
 	vvp tb
 clean:
+	rm -rf obj_dir/
 	rm -f tb tb.vcd

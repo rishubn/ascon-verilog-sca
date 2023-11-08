@@ -3,8 +3,8 @@ module dom_and #(parameter D = 2, parameter W = 1, parameter Z=D*(D-1)/2) (
                                                                            input            rst,
                                                                            input [D*W-1:0]  a_i,
                                                                            input [D*W-1:0]  b_i,
-                                                                           input [W*Z-1:0]  rdi,
-                                                                           output [D*D-1:0] c_o
+                                                                           input [Z*W-1:0]  rdi,
+                                                                           output [D*W-1:0] c_o
                                                                            );
 
 
@@ -12,7 +12,7 @@ module dom_and #(parameter D = 2, parameter W = 1, parameter Z=D*(D-1)/2) (
   logic [D-1:0][W-1:0] a;
   logic [D-1:0][W-1:0] b;
   logic [D-1:0][W-1:0] c;
-
+  logic [Z-1:0][W-1:0] z;
   logic [D*D-1:0][W-1:0] ai_bj_r;
 
 
@@ -20,7 +20,9 @@ module dom_and #(parameter D = 2, parameter W = 1, parameter Z=D*(D-1)/2) (
     for(integer share = 0; share < D; share += 1) begin
       a[share] = a_i[W*share +: W];
       b[share] = b_i[W*share +: W];
-
+    end
+    for(integer i = 0; i < Z; i += 1) begin
+      z[i] = rdi[i*W +: W];
     end
   end
 
@@ -39,9 +41,9 @@ module dom_and #(parameter D = 2, parameter W = 1, parameter Z=D*(D-1)/2) (
         if(i == j) begin
           ai_bj[D * i + j] = a[i] & b[j];
         end else if(j > i) begin
-          ai_bj[D * i + j] = (a[i] & b[j]) ^ rdi[i + j * (j-1)/2];
+          ai_bj[D * i + j] = (a[i] & b[j]) ^ z[i + j * (j-1)/2];
         end else begin
-          ai_bj[(D * i) + j] = (a[i] & b[j]) ^ rdi[j + i * (i-1)/2];
+          ai_bj[(D * i) + j] = (a[i] & b[j]) ^ z[j + i * (i-1)/2];
         end
       end
     end // for (integer i = 0; i < D; i += 1)
