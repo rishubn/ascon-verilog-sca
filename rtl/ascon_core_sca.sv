@@ -8,38 +8,38 @@
 `include "config_sca.vh"
 `include `CONFIG_V_FILE
 
-module ascon_core_sca#(parameter D = NUM_SHARES) (
-    input  logic            clk,
-    input  logic            rst,
-    input  logic [D*CCSW-1:0] key,
-    input  logic            key_valid,
-    output logic            key_ready,
-    input  logic [D*CCW-1:0] bdi,
-    input  logic            bdi_valid,
-    output logic            bdi_ready,
-    input  logic [     3:0] bdi_type,
-    input  logic            bdi_eot,
-    input  logic            bdi_eoi,
-    input  logic            decrypt,
-    input  logic            hash,
-    output logic [D*CCW-1:0] bdo,
-    output logic            bdo_valid,
-    input  logic            bdo_ready,
-    output logic [     3:0] bdo_type,
-    output logic            bdo_eot,
-    output logic            auth,
-    output logic            auth_valid,
-    input  logic            auth_ready
-);
+  module ascon_core_sca#(parameter D = NUM_SHARES) (
+                                                    input logic              clk,
+                                                    input logic              rst,
+                                                    input logic [D*CCSW-1:0] key,
+                                                    input logic              key_valid,
+                                                    output logic             key_ready,
+                                                    input logic [D*CCW-1:0]  bdi,
+                                                    input logic              bdi_valid,
+                                                    output logic             bdi_ready,
+                                                    input logic [ 3:0]       bdi_type,
+                                                    input logic              bdi_eot,
+                                                    input logic              bdi_eoi,
+                                                    input logic              decrypt,
+                                                    input logic              hash,
+                                                    output logic [D*CCW-1:0] bdo,
+                                                    output logic             bdo_valid,
+                                                    input logic              bdo_ready,
+                                                    output logic [ 3:0]      bdo_type,
+                                                    output logic             bdo_eot,
+                                                    output logic             auth,
+                                                    output logic             auth_valid,
+                                                    input logic              auth_ready
+                                                    );
 
   // Core registers
   logic [LANE_BITS/2-1:0] state     [D][      LANES] [2];
   logic [    LANE_BITS/2-1:0] ascon_key [D][KEY_BITS/32];
-  logic [            3:0] round_cnt;
+  logic [            3:0]     round_cnt;
   logic [            $clog2(SBOX_LATENCY):0] sbox_cnt;
-  logic [            1:0] word_cnt;
-  logic [            1:0] hash_cnt;
-  logic flag_ad_eot, flag_dec, flag_eoi, flag_hash, auth_intern;
+  logic [            1:0]                    word_cnt;
+  logic [            1:0]                    hash_cnt;
+  logic                                      flag_ad_eot, flag_dec, flag_eoi, flag_hash, auth_intern;
 
   // Utility signals
   assign op_ld_key_req = key_valid;
@@ -77,57 +77,79 @@ module ascon_core_sca#(parameter D = NUM_SHARES) (
   assign ver_tag_done = (word_cnt == 3) & ver_tag_do;
 
   logic [            3:0] state_idx;
-  logic [LANE_BITS/2-1:0] asconp_o    [LANES][2];
+  logic [LANE_BITS/2-1:0] asconp_o    [D][LANES][2];
+  logic [D*LANE_BITS-1:0] asconp_o_t [LANES];
   logic [        D*CCW-1:0] state_i;
-  logic [        CCW-1:0] state_slice;
+  logic [        D*CCW-1:0] state_slice;
 
-  logic [D*64-1:0]	  asconp_i;
-  
-  //assign state_slice = state[state_idx/2][state_idx%2];  // Dynamic slicing
+  logic [D*LANE_BITS-1:0]   asconp_i [LANES];
+
+
+  // Dynamic slicing
+  always_comb begin
+    for(int share = 0; share < D; share += 1) begin
+      state_slice[share*CCW +: CCW] = state[share][state_idx/2][state_idx%2];
+    end
+  end
+
 
   // Finate state machine
   typedef enum bit [63:0] {
-    IDLE         = "IDLE",
-    LOAD_KEY     = "LD_KEY",
-    LOAD_NONCE   = "LD_NONCE",
-    INIT         = "INIT",
-    KEY_ADD_2    = "KEY_ADD2",
-    ABS_AD       = "ABS_AD",
-    PRO_AD       = "PRO_AD",
-    DOM_SEP      = "DOM_SEP",
-    ABS_PTCT     = "ABS_PTCT",
-    PRO_PTCT     = "PRO_PTCT",
-    KEY_ADD_3    = "KEY_ADD3",
-    FINAL        = "FINAL",
-    KEY_ADD_4    = "KEY_ADD4",
-    SQUEEZE_TAG  = "SQZ_TAG",
-    SQUEEZE_HASH = "SQZ_HASH",
-    VERIF_TAG    = "VER_TAG"
-  } fsms_t;
+                           IDLE         = "IDLE",
+                           LOAD_KEY     = "LD_KEY",
+                           LOAD_NONCE   = "LD_NONCE",
+                           INIT         = "INIT",
+                           KEY_ADD_2    = "KEY_ADD2",
+                           ABS_AD       = "ABS_AD",
+                           PRO_AD       = "PRO_AD",
+                           DOM_SEP      = "DOM_SEP",
+                           ABS_PTCT     = "ABS_PTCT",
+                           PRO_PTCT     = "PRO_PTCT",
+                           KEY_ADD_3    = "KEY_ADD3",
+                           FINAL        = "FINAL",
+                           KEY_ADD_4    = "KEY_ADD4",
+                           SQUEEZE_TAG  = "SQZ_TAG",
+                           SQUEEZE_HASH = "SQZ_HASH",
+                           VERIF_TAG    = "VER_TAG"
+                           } fsms_t;
   fsms_t fsm;  // Current state
   fsms_t fsm_nx;  // Next state
 
   // Instantiation of Ascon-p permutation
-  asconp asconp_i (
-		   .clk(clk),
-		   .rst(rst),
-		   .rdi(0),
-      .round_cnt(round_cnt),
-      .x0_i({ 64'h0123456789abcdef,state[0][0], state[0][1]}),
-      .x1_i({state[1][0], state[1][1]}),
-      .x2_i({state[2][0], state[2][1]}),
-      .x3_i({state[3][0], state[3][1]}),
-      .x4_i({state[4][0], state[4][1]}),
-      .x0_o({asconp_o[0][0], asconp_o[0][1]}),
-      .x1_o({asconp_o[1][0], asconp_o[1][1]}),
-      .x2_o({asconp_o[2][0], asconp_o[2][1]}),
-      .x3_o({asconp_o[3][0], asconp_o[3][1]}),
-      .x4_o({asconp_o[4][0], asconp_o[4][1]})
-  );
+  asconp i_asconp (
+                   .clk         (clk),
+                   .rst         (rst),
+                   .rdi         (0),
+                   .round_cnt   (round_cnt),
+                   .x0_i        (asconp_i[0]),
+                   .x1_i        (asconp_i[1]),
+                   .x2_i        (asconp_i[2]),
+                   .x3_i        (asconp_i[3]),
+                   .x4_i        (asconp_i[4]),
+                   .x0_o        (asconp_o_t[0]),
+                   .x1_o        (asconp_o_t[1]),
+                   .x2_o        (asconp_o_t[2]),
+                   .x3_o        (asconp_o_t[3]),
+                   .x4_o        (asconp_o_t[4])
+                   );
 
   always_comb begin
     for(int share = 0; share < D; share += 1) begin
-      asconp_i[share*64 +: 64] = state[share][]
+      asconp_i[0][share*64 +: 64] = {state[share][0][0], state[share][0][1]};
+      asconp_i[1][share*64 +: 64] = {state[share][1][0], state[share][1][1]};
+      asconp_i[2][share*64 +: 64] = {state[share][2][0], state[share][2][1]};
+      asconp_i[3][share*64 +: 64] = {state[share][3][0], state[share][3][1]};
+      asconp_i[4][share*64 +: 64] = {state[share][4][0], state[share][4][1]};
+
+      {asconp_o[share][0][0], asconp_o[share][0][1]} = asconp_o_t[0][share*64 +: 64];
+      {asconp_o[share][1][0], asconp_o[share][1][1]} = asconp_o_t[1][share*64 +: 64];
+      {asconp_o[share][2][0], asconp_o[share][2][1]} = asconp_o_t[2][share*64 +: 64];
+      {asconp_o[share][3][0], asconp_o[share][3][1]} = asconp_o_t[3][share*64 +: 64];
+      {asconp_o[share][4][0], asconp_o[share][4][1]} = asconp_o_t[4][share*64 +: 64];
+
+    end
+  end
+
   /////////////////////
   // Control Signals //
   /////////////////////
@@ -151,16 +173,16 @@ module ascon_core_sca#(parameter D = NUM_SHARES) (
       ABS_AD: begin
         state_idx = {2'b0, word_cnt};
         bdi_ready = 1;
-   //     state_i   = state_slice ^ bdi;
+        state_i   = state_slice ^ bdi;
       end
       ABS_PTCT: begin
         state_idx = {2'b0, word_cnt};
         if (flag_dec) begin
           state_i = bdi;
-   //       bdo = state_slice ^ state_i;
+          bdo = state_slice ^ state_i;
         end else begin
-     //     state_i = state_slice ^ bdi;
-        //  bdo = state_i;
+          state_i = state_slice ^ bdi;
+          bdo = state_i;
         end
         bdi_ready = 1;
         bdo_valid = bdi_valid;
@@ -169,14 +191,14 @@ module ascon_core_sca#(parameter D = NUM_SHARES) (
       end
       SQUEEZE_TAG: begin
         state_idx = {2'b0, word_cnt} + 6;
-   //     bdo       = state_slice;
+        bdo       = state_slice;
         bdo_valid = 1;
         bdo_type  = D_TAG;
         bdo_eot   = word_cnt == 3;
       end
       SQUEEZE_HASH: begin
         state_idx = {2'b0, word_cnt};
-     //   bdo       = state_slice;
+        bdo       = state_slice;
         bdo_valid = 1;
         bdo_type  = D_HASH;
         bdo_eot   = (hash_cnt == 3) & (word_cnt == 1);
@@ -244,44 +266,57 @@ module ascon_core_sca#(parameter D = NUM_SHARES) (
   always @(posedge clk) begin
     if (rst == 0) begin
       if (ld_nonce_do || abs_ad_do || abs_ptct_do) begin
-	for(int share = 0; share < D; share += 1) state[share][state_idx/2][state_idx%2] <= state_i[share*CCW +: CCW];  // Dynamic slicing
+        for(int share = 0; share < D; share += 1) state[share][state_idx/2][state_idx%2] <= state_i[share*CCW +: CCW];  // Dynamic slicing
       end
       // State initialization, hashing
       if (idle_done & op_hash_req) begin
-	state[0][0][0] <= IV_HASH[31:0];
-	state[0][0][1] <= IV_HASH[63:32];
-	for(int share = 0; share < D; share += 1) begin
-	  for (int i = 2; i < 10; i++) state[share][i/2][i%2] <= 0;
-	end
+        state[0][0][0] <= IV_HASH[31:0];
+        state[0][0][1] <= IV_HASH[63:32];
+        for(int share = 1; share < D; share += 1) state[share][0][0] <= 32'b0;
+        for(int share = 1; share < D; share += 1) state[share][0][1] <= 32'b0;
+        for(int share = 0; share < D; share += 1) begin
+          for (int i = 2; i < 10; i++) state[share][i/2][i%2] <= 0;
+        end
       end
       // State initialization, key addition 1
       if (ld_nonce_done) begin
-	state[0][0][0] <= IV_AEAD[31:0];
+        state[0][0][0] <= IV_AEAD[31:0];
         state[0][0][1] <= IV_AEAD[63:32];
-	for(int share = 0; share < D; share += 1) begin
-	  for (int i = 0; i < 4; i++) state[share][1+i/2][i%2] <= ascon_key[share][i];
-	end
+        for(int share = 1; share < D; share += 1) state[share][0][0] <= 32'b0;
+        for(int share = 1; share < D; share += 1) state[share][0][1] <= 32'b0;
+        for(int share = 0; share < D; share += 1) begin
+          for (int i = 0; i < 4; i++) state[share][1+i/2][i%2] <= ascon_key[share][i];
+        end
       end
       // Compute Ascon-p
       if ((init_do || pro_ad_do || pro_ptct_do || final_do) & (sbox_cnt == 0)) begin
-    //    for (int i = 0; i < 10; i++) state[i/2][i%2] <= asconp_o[i/2][i%2];
+        for(int share = 0; share < D; share += 1) begin
+          for (int i = 0; i < 10; i++) state[share][i/2][i%2] <= asconp_o[share][i/2][i%2];
+        end
       end
       // Key addition 2/4
-      if (key_add_2_done | fsm == KEY_ADD_4) begin
-     //   for (int i = 0; i < 4; i++) state[3+i/2][i%2] <= state[3+i/2][i%2] ^ ascon_key[i];
+      if (key_add_2_done || fsm == KEY_ADD_4) begin
+        for(int share = 0; share < D; share += 1) begin
+          for (int i = 0; i < 4; i++) state[share][3+i/2][i%2] <= state[share][3+i/2][i%2] ^ ascon_key[share][i];
+        end
       end
       // Domain separation
       if (fsm == DOM_SEP) begin
-  //      state[4][1] <= state[4][1] ^ 32'h00000001;
-   //     if (flag_eoi) state[0][0] <= state[0][0] ^ 32'h80000000;  // Padding of empty message
+        state[0][4][1] <= state[0][4][1] ^ 32'h00000001;
+        for(int share = 0; share < D; share += 1) begin
+
+          if (flag_eoi) state[share][0][0] <= state[share][0][0] ^ 32'h80000000;  // Padding of empty message
+        end
       end
       // Key addition 3
       if (fsm == KEY_ADD_3) begin
-   //     for (int i = 0; i < 4; i++) state[1+i/2][i%2] <= state[1+i/2][i%2] ^ ascon_key[i];
+        for(int share = 0; share < D; share += 1) begin
+          for (int i = 0; i < 4; i++) state[share][1+i/2][i%2] <= state[share][1+i/2][i%2] ^ ascon_key[share][i];
+        end
       end
       // Store key
       if (ld_key_do) begin
-	for(int share = 0; share < D; share += 1) ascon_key[share][word_cnt] <= key[share*CCSW +: CCSW];
+        for(int share = 0; share < D; share += 1) ascon_key[share][word_cnt] <= key[share*CCSW +: CCSW];
       end
     end
   end
@@ -353,7 +388,7 @@ module ascon_core_sca#(parameter D = NUM_SHARES) (
       end
       if (abs_ptct_done) if (bdi_eoi == 1) flag_eoi <= 1;
       if ((fsm == KEY_ADD_4) & flag_dec) auth_intern <= 1;
-      if (ver_tag_do) auth_intern <= auth_intern; // & (bdi == state_slice);
+      if (ver_tag_do) auth_intern <= auth_intern & (bdi == state_slice);
       if (ver_tag_done) begin
         auth_valid <= 1;
         auth <= auth_intern;
@@ -374,22 +409,22 @@ module ascon_core_sca#(parameter D = NUM_SHARES) (
     x2 = 0;
     x3 = 0;
     x4 = 0;
-    
+
     for(integer share = 0; share < D; share += 1) begin
       x0 = x0 ^ {state[share][0][0], state[share][0][1]};
       x1 = x1 ^ {state[share][1][0], state[share][1][1]};
       x2 = x2 ^ {state[share][2][0], state[share][2][1]};
       x3 = x3 ^ {state[share][3][0], state[share][3][1]};
       x4 = x4 ^ {state[share][4][0], state[share][4][1]};
-      
-    assign x0_lane[share*64 +: 64] = {state[share][0][0], state[share][0][1]};
-    assign x1_lane[share*64 +: 64] = {state[share][1][0], state[share][1][1]};
-    assign x2_lane[share*64 +: 64] = {state[share][2][0], state[share][2][1]};
-    assign x3_lane[share*64 +: 64] = {state[share][3][0], state[share][3][1]};
-    assign x4_lane[share*64 +: 64] = {state[share][4][0], state[share][4][1]};
+
+      assign x0_lane[share*64 +: 64] = {state[share][0][0], state[share][0][1]};
+      assign x1_lane[share*64 +: 64] = {state[share][1][0], state[share][1][1]};
+      assign x2_lane[share*64 +: 64] = {state[share][2][0], state[share][2][1]};
+      assign x3_lane[share*64 +: 64] = {state[share][3][0], state[share][3][1]};
+      assign x4_lane[share*64 +: 64] = {state[share][4][0], state[share][4][1]};
     end // for (integer share = 0; share < D; share += 1)
   end
-  
+
   initial begin
     $dumpfile("tb.vcd");
     $dumpvars(0, fsm, flag_ad_eot, flag_dec, flag_eoi, flag_hash, word_cnt, round_cnt, hash_cnt,

@@ -93,7 +93,7 @@ module tb;
           void'($fscanf(fd, "%h", data));
           op <= data[31:28];
           flags <= data[27:24];
-          tb_word_cnt <= (data[23:0] + 3) / 4 + 1;
+          tb_word_cnt <= (data[23:0] + 3) / (4) +1;
         end else if (hdr == "DAT") begin
           void'($fscanf(fd, "%h", data));
           tb_word_cnt <= tb_word_cnt - (tb_word_cnt > 0);
@@ -175,15 +175,23 @@ module tb;
     end
   end
   /* verilator lint_on LATCH */
+  logic [CCW-1:0] bdo_s;
+  always_comb begin
+    bdo_s = 0;
+    for(int share = 0; share < NUM_SHARES; share+= 1 ) begin
+      bdo_s = bdo_s ^ bdo[share*CCW +: CCW];
+    end
+  end
+  
   // Print message output from Ascon core
   always @(posedge clk) begin
     if (bdo_valid) begin
       if (bdo_type == D_PTCT) begin
-        if (decrypt) $display("p => %h", bdo);
-        else $display("c => %h", bdo);
+        if (decrypt) $display("p => %h", bdo_s);
+        else $display("c => %h", bdo_s);
       end
-      if (bdo_type == D_TAG) $display("t => %h", bdo);
-      if (bdo_type == D_HASH) $display("h => %h", bdo);
+      if (bdo_type == D_TAG) $display("t => %h", bdo_s);
+      if (bdo_type == D_HASH) $display("h => %h", bdo_s);
     end
   end
 

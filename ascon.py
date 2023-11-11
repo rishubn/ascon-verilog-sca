@@ -104,6 +104,7 @@ def ascon_process_plaintext(S, b, rate, p):
             S[0] ^= bytes_to_int(p[block : block + 8])
             S[1] ^= bytes_to_int(p[block + 8 : block + 16])
             c += int_to_bytes(S[0], 8) + int_to_bytes(S[1], 8)
+        print(f'{block} {len(p) - rate}')
         if block < (len(p) - rate):
             ascon_permutation(S, b)
     return c
@@ -150,9 +151,11 @@ def ascon_permutation(S, rounds=1):
         S[0] ^= S[4]
         S[4] ^= S[3]
         S[2] ^= S[1]
+        
         T = [(S[i] ^ 0xFFFFFFFFFFFFFFFF) & S[(i + 1) % 5] for i in range(5)]
         for i in range(5):
             S[i] ^= T[(i + 1) % 5]
+        
         S[1] ^= S[0]
         S[0] ^= S[4]
         S[3] ^= S[2]

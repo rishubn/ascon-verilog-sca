@@ -73,7 +73,7 @@ def write_tv_file(k, n, ad, p, c, m, d):
 
     if INCL_ENC:
         f.write("# Load key\n")
-        f.write("INS 30{:06x}\n".format(len(k)*d))
+        f.write("INS 30{:06x}\n".format(len(k)))
         write_data_seg(f, k, len(k), d)
 
         f.write("# Specify authenticated encryption\n")
@@ -81,22 +81,22 @@ def write_tv_file(k, n, ad, p, c, m, d):
         f.write("\n")
 
         f.write("# Load nonce\n")
-        f.write("INS 40{:06x}\n".format(len(n)*d))
+        f.write("INS 40{:06x}\n".format(len(n)))
         write_data_seg(f, n, len(n), d)
 
         if len(ad) > 0:
             f.write("# Load associated data\n")
-            f.write("INS 50{:06x}\n".format(len(ad)*d))
+            f.write("INS 50{:06x}\n".format(len(ad)))
             write_data_seg(f, ad, len(ad), d)
 
         f.write("# Load plaintext\n")
-        f.write("INS 61{:06X}\n".format(len(p)*d))
+        f.write("INS 61{:06X}\n".format(len(p)))
         write_data_seg(f, p, len(p), d)
 
     if INCL_DEC:
         if not INCL_ENC:
             f.write("# Load key\n")
-            f.write("INS 30{:06x}\n".format(len(k)*d))
+            f.write("INS 30{:06x}\n".format(len(k)))
             write_data_seg(f, k, len(k), d)
 
         f.write("# Specify authenticated decryption\n")
@@ -104,16 +104,16 @@ def write_tv_file(k, n, ad, p, c, m, d):
         f.write("\n")
 
         f.write("# Load nonce\n")
-        f.write("INS 40{:06x}\n".format(len(n)*d))
+        f.write("INS 40{:06x}\n".format(len(n)))
         write_data_seg(f, n, len(n), d)
 
         if len(ad) > 0:
             f.write("# Load associated data\n")
-            f.write("INS 50{:06x}\n".format(len(ad)*d))
+            f.write("INS 50{:06x}\n".format(len(ad)))
             write_data_seg(f, ad, len(ad), d)
 
         f.write("# Load ciphertext\n")
-        f.write("INS 71{:06X}\n".format(len(p)*d))
+        f.write("INS 71{:06X}\n".format(len(p)))
         write_data_seg(f, c, len(c) - 16, d)
 
         f.write("# Load tag\n")
@@ -126,12 +126,27 @@ def write_tv_file(k, n, ad, p, c, m, d):
         f.write("\n")
 
         f.write("# Load message data\n")
-        f.write("INS 51{:06x}\n".format(len(m)*d))
+        f.write("INS 51{:06x}\n".format(len(m)))
         write_data_seg(f, m, len(m), d)
 
     f.close()
 
-
+# Print inputs/outputs of Ascon software implementation
+def print_result(result, ad_pad, p_pad, c, m_pad, h):
+    print()
+    if result:
+        print(f"{FAIL}")
+    print("ad = " + "".join("{:02x}".format(x) for x in ad_pad))
+    print("p  = " + "".join("{:02x}".format(x) for x in p_pad))
+    print("c  = " + "".join("{:02x}".format(x) for x in c[:-16]))
+    print("t  = " + "".join("{:02x}".format(x) for x in c[-16:]))
+    print("m  = " + "".join("{:02x}".format(x) for x in m_pad))
+    print("h  = " + "".join("{:02x}".format(x) for x in h))
+    if result:
+        print(f"ERROR{ENDC}")
+        exit()
+    else:
+        print(f"{OKGREEN}PASS{ENDC}")
 def run_tb(k, n, ad, p, variant, num_shares):
     ad_pad = bytearray(ad)
     p_pad = bytearray(p)
@@ -155,7 +170,48 @@ def run_tb(k, n, ad, p, variant, num_shares):
 
     # Write test vector file for verilog test bench
     write_tv_file(k, n, ad_pad, p_pad, c, m_pad, num_shares)
+    ps = subprocess.run(
+        ["make", f'VERSION={variant}','VCD=1', 'verilator'],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+        text=True,
+    )
+    stdout = io.StringIO(ps.stdout)
+    tb_c = bytearray()
+    tb_t = bytearray()
+    tb_p = bytearray()
+    tb_h = bytearray()
+    tb_ver = bytearray()
+    for line in stdout.readlines():
+        print(line)
+        if "c =>" in line:
+            tb_c += bytearray.fromhex(line[5 : 5 + 16])
+        if "t =>" in line:
+            tb_t += bytearray.fromhex(line[5 : 5 + 16])
+        if "p =>" in line:
+            tb_p += bytearray.fromhex(line[5 : 5 + 16])
+        if "h =>" in line:
+            tb_h += bytearray.fromhex(line[5 : 5 + 16])
+        if "v =>" in line:
+            tb_ver += bytearray.fromhex("0" + line[5 : 5 + 1])
+            
+    print("ad = " + "".join("{:02x}".format(x) for x in ad_pad))
+    print("p  = " + "".join("{:02x}".format(x) for x in tb_p))
+    print("c  = " + "".join("{:02x}".format(x) for x in tb_c[:-16]))
+    print("t  = " + "".join("{:02x}".format(x) for x in tb_t[-16:]))
+    result = 0
+    if INCL_ENC:
+        result |= c[:-16] != tb_c
+        result |= c[-16:] != tb_t
+    if INCL_DEC:
+        result |= p_pad != tb_p
+        result |= tb_ver[0] != 1
+    if INCL_HASH:
+        result |= h != tb_h
     
+   # print_result(result, ad_pad, tb_p, tb_c, m_pad, tb_h)
+    print_result(result, ad_pad, p_pad, c, m_pad, h)
 def run_tb_single(variant, num_shares):
     k = bytes.fromhex("000102030405060708090a0b0c0d0e0f")
     n = bytes.fromhex("000102030405060708090a0b0c0d0e0f")

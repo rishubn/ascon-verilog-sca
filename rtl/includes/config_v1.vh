@@ -7,5 +7,7 @@
 // - Ascon-128 + Ascon-Hash.
 // - 32-bit data block interface.
 // - 1 permutation round per clock cycle.
-
-parameter logic [1:0] UROL = 1;
+`ifndef _config_v1_vh_
+`define _config_v1_vh_
+parameter unsigned UROL = 1;
+`endif
