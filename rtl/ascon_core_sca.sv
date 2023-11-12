@@ -365,7 +365,17 @@
   //////////////////
   // Flag Updates //
   //////////////////
-
+  logic [CCW-1:0] bdi_unshared, state_slice_unshared;
+  always_comb begin
+    bdi_unshared = 0;
+    state_slice_unshared = 0;
+    if(ver_tag_do) begin	     
+      for(int share = 0; share < D; share += 1) begin
+	bdi_unshared = bdi_unshared ^ bdi[CCW*share +: CCW];
+	state_slice_unshared = state_slice_unshared ^ state_slice[CCW*share +: CCW];
+      end
+    end
+  end
   always @(posedge clk) begin
     if (rst == 0) begin
       if (idle_done) begin
@@ -388,7 +398,7 @@
       end
       if (abs_ptct_done) if (bdi_eoi == 1) flag_eoi <= 1;
       if ((fsm == KEY_ADD_4) & flag_dec) auth_intern <= 1;
-      if (ver_tag_do) auth_intern <= auth_intern & (bdi == state_slice);
+      if (ver_tag_do) auth_intern <= auth_intern & (bdi_unshared == state_slice_unshared);
       if (ver_tag_done) begin
         auth_valid <= 1;
         auth <= auth_intern;

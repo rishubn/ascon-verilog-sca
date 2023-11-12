@@ -198,8 +198,10 @@ def run_tb(k, n, ad, p, variant, num_shares):
             
     print("ad = " + "".join("{:02x}".format(x) for x in ad_pad))
     print("p  = " + "".join("{:02x}".format(x) for x in tb_p))
-    print("c  = " + "".join("{:02x}".format(x) for x in tb_c[:-16]))
-    print("t  = " + "".join("{:02x}".format(x) for x in tb_t[-16:]))
+    print("c  = " + "".join("{:02x}".format(x) for x in tb_c))
+    print("t  = " + "".join("{:02x}".format(x) for x in tb_t))
+    print("m  = " + "".join("{:02x}".format(x) for x in m_pad))
+    print("h  = " + "".join("{:02x}".format(x) for x in tb_h))
     result = 0
     if INCL_ENC:
         result |= c[:-16] != tb_c

@@ -222,7 +222,7 @@ module tb;
     rst = 1;
     #10;
     rst = 0;
-    #(SIM_CYCLES * 10);
+    #(SIM_CYCLES * 15);
     $fclose(fd);
     $finish;
   end
