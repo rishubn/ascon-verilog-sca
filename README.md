@@ -1,15 +1,16 @@
-# Hardware Design of [Ascon-128 and Ascon-Hash (v1.2)](https://ascon.iaik.tugraz.at)
+# Side-Channel Protected Hardware Design of [Ascon-128 and Ascon-Hash (v1.2)](https://ascon.iaik.tugraz.at)
 
 [Ascon](https://ascon.iaik.tugraz.at) is a family of authenticated encryption and hashing algorithms designed to be lightweight and easy to implement, even with added countermeasures against side-channel attacks. Ascon has been selected as new standard for lightweight cryptography in the [NIST Lightweight Cryptography competition](https://www.nist.gov/news-events/news/2023/02/nist-selects-lightweight-cryptography-algorithms-protect-small-devices) (2019–2023). Ascon has also been selected as the primary choice for lightweight authenticated encryption in the final portfolio of the [CAESAR competition](https://competitions.cr.yp.to/caesar.html) (2014-2019).
 
-This verilog implementation of Ascon is similar to my [previous VHDL implementation](https://github.com/ascon/ascon-hardware). The verilog version uses a simpler interface that considerably reduces the size of the code base. The main interface changes are:
+This verilog implementation of Ascon is based off of the [Verilog Ascon implementation](https://github.com/rprimas/ascon-verilog) by Robert Primas. The verilog version uses a simpler interface that considerably reduces the size of the code base. The main interface changes are:
+- t-order protection via NUM_SHARES paramater
 - Some signals have been removed (see [Interface](#Interface) section).
-- Bus width is fixed to 32 bits.
+- Bus width is fixed to 32*NUM_SHARES bits.
 - Padding of inputs/outputs is shifted to software.
 
 Besides the interface changes, this code base comes with:
 - A more permissive CC0 license.
-- A low amount of external dependencies, i.e., Python, Icarus Verilog, and optionally GTKWave.
+- A low amount of external dependencies, i.e., Python, Verilator, and optionally GTKWave.
 - Easy instructions for simulation/debugging using open-source tools.
 
 ## Available Variants
@@ -116,7 +117,7 @@ You can have a look at `rtl/tb.sv` for an example of how the Ascon core interfac
 
 ## Contact
 
-- Robert Primas (rprimas 'at' proton.me, https://rprimas.github.io)
+- Rishub Nagpal (rishub.nagpal 'at' iaik.tugraz.at)
 
 ## Acknowledgements
 
